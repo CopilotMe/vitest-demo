@@ -1,0 +1,380 @@
+name: FixSense Auto-Fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_name:
+        description: "Failing test name(s)"
+        required: false
+        type: string
+      root_cause:
+        description: "AI root cause (first test, for Claude context)"
+        required: false
+        type: string
+      suggested_fix:
+        description: "AI suggested fix (first test, for Claude context)"
+        required: false
+        type: string
+      pr_title:
+        description: "Short PR title"
+        required: false
+        type: string
+      analysis_details:
+        description: "Formatted markdown with all test analyses"
+        required: false
+        type: string
+      run_id:
+        description: "Original CI run ID"
+        required: false
+        type: string
+      issue_number:
+        description: "GitHub Issue number to update"
+        required: false
+        type: string
+      ai_provider:
+        description: "Override AI provider (auto-detect if empty)"
+        required: false
+        type: choice
+        default: "auto"
+        options:
+          - auto
+          - anthropic
+          - openai
+          - gemini
+          - custom
+      runner:
+        description: "GitHub runner label (use 'self-hosted' for local LLM)"
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+jobs:
+  fix:
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Detect test framework
+        run: |
+          if [ -f "cypress.config.ts" ] || [ -f "cypress.config.js" ] || [ -f "cypress.json" ]; then
+            echo "TEST_FRAMEWORK=cypress" >> $GITHUB_ENV
+          elif [ -f "vitest.config.ts" ] || [ -f "vitest.config.js" ] || [ -f "vitest.config.mts" ] || grep -q '"vitest"' package.json 2>/dev/null; then
+            echo "TEST_FRAMEWORK=vitest" >> $GITHUB_ENV
+          elif grep -q '"jest"' package.json 2>/dev/null || [ -f "jest.config.ts" ] || [ -f "jest.config.js" ]; then
+            echo "TEST_FRAMEWORK=jest" >> $GITHUB_ENV
+          else
+            echo "TEST_FRAMEWORK=playwright" >> $GITHUB_ENV
+          fi
+
+      - name: Install Playwright browsers
+        if: env.TEST_FRAMEWORK == 'playwright'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright CLI
+        if: env.TEST_FRAMEWORK == 'playwright'
+        run: npm install -g @playwright/cli@latest
+
+      - name: Install Cypress
+        if: env.TEST_FRAMEWORK == 'cypress'
+        run: npx cypress install
+
+      - name: Create fix branch
+        run: |
+          BRANCH="failsense/auto-fix-$(date +%s)"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+
+      # ── Provider selection: manual override or auto-detect from secrets ──
+      - name: Detect AI provider
+        run: |
+          OVERRIDE="${{ inputs.ai_provider }}"
+          if [ -n "$OVERRIDE" ] && [ "$OVERRIDE" != "auto" ]; then
+            echo "AI_PROVIDER=$OVERRIDE" >> $GITHUB_ENV
+            echo "📌 Provider override: $OVERRIDE"
+          elif [ -n "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ] || [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+            echo "AI_PROVIDER=anthropic" >> $GITHUB_ENV
+          elif [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "AI_PROVIDER=openai" >> $GITHUB_ENV
+          elif [ -n "${{ secrets.GOOGLE_API_KEY }}" ]; then
+            echo "AI_PROVIDER=gemini" >> $GITHUB_ENV
+          elif [ -n "${{ secrets.CUSTOM_LLM_URL }}" ]; then
+            echo "AI_PROVIDER=custom" >> $GITHUB_ENV
+          else
+            echo "ERROR: No AI key configured. Add CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY."
+            exit 1
+          fi
+
+      # ── Option A: Claude Code CLI (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY) ──
+      - name: Install Claude Code CLI
+        if: env.AI_PROVIDER == 'anthropic'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run Claude Agent Fix
+        if: env.AI_PROVIDER == 'anthropic'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "📌 Provider: anthropic (Claude Code CLI, model: sonnet)"
+          # Capture test output — targeted run if test name provided
+          if [ "$TEST_FRAMEWORK" = "cypress" ]; then
+            if [ -n "${{ inputs.test_name }}" ]; then
+              npx cypress run --spec "${{ inputs.test_name }}" 2>&1 | tee test-output.txt || true
+            else
+              npx cypress run 2>&1 | tee test-output.txt || true
+            fi
+          elif [ "$TEST_FRAMEWORK" = "vitest" ]; then
+            if [ -n "${{ inputs.test_name }}" ]; then
+              npx vitest run "${{ inputs.test_name }}" --reporter=verbose 2>&1 | tee test-output.txt || true
+            else
+              npx vitest run --reporter=verbose 2>&1 | tee test-output.txt || true
+            fi
+          elif [ "$TEST_FRAMEWORK" = "jest" ]; then
+            if [ -n "${{ inputs.test_name }}" ]; then
+              npx jest "${{ inputs.test_name }}" --verbose 2>&1 | tee test-output.txt || true
+            else
+              npx jest --verbose 2>&1 | tee test-output.txt || true
+            fi
+          else
+            TEST_GREP=""
+            if [ -n "${{ inputs.test_name }}" ]; then
+              TEST_GREP="--grep \"${{ inputs.test_name }}\""
+            fi
+            eval npx playwright test $TEST_GREP --reporter=list 2>&1 | tee test-output.txt || true
+          fi
+          ERROR_OUTPUT=$(cat test-output.txt | tail -80)
+
+          AI_CONTEXT=""
+          if [ -n "${{ inputs.root_cause }}" ]; then
+            AI_CONTEXT="
+          AI ANALYSIS:
+          Root Cause: ${{ inputs.root_cause }}
+          Suggested Fix: ${{ inputs.suggested_fix }}
+          Failing Test: ${{ inputs.test_name }}
+          "
+          fi
+
+          claude -p \
+            --model sonnet \
+            --dangerously-skip-permissions \
+            --max-turns 15 \
+            --output-format text \
+            <<EOF
+          You are fixing failing ${TEST_FRAMEWORK} tests in this repo.
+
+          ${AI_CONTEXT}
+
+          TEST OUTPUT:
+          ${ERROR_OUTPUT}
+
+          AVAILABLE TOOLS (use based on framework):
+          Playwright:
+          - Use "npx playwright test --grep '<test name>'" to run specific tests
+          - Use "npx playwright test" to run the full suite
+          Cypress:
+          - Use "npx cypress run --spec '<spec file>'" to run specific test files
+          - Use "npx cypress run" to run the full suite
+          Vitest:
+          - Use "npx vitest run '<test file or pattern>'" to run specific tests
+          - Use "npx vitest run" to run the full suite
+          Jest:
+          - Use "npx jest '<test file or pattern>'" to run specific tests
+          - Use "npx jest" to run the full suite
+
+          YOUR TASK:
+          1. Read the failing test file to understand what is being tested
+          2. Read the source code under test to understand the expected behavior
+          3. Run the failing test to see the actual error output
+          4. Identify root cause — is it a bug in source code or a wrong test assertion?
+          5. Fix it. For unit tests, prefer fixing SOURCE CODE over changing tests unless the test is clearly wrong. For E2E tests, fix the TEST code to match real application behavior.
+          6. Run the failing test with the appropriate command for ${TEST_FRAMEWORK}
+          7. If it passes, run the full suite
+          8. If tests pass, you're done. If not, try again (max 5 tries).
+
+          RULES:
+          - For E2E tests (Playwright/Cypress): fix test code — selectors, assertions, waits
+          - For unit tests (Vitest/Jest): prefer fixing source code, unless the test expectation is clearly wrong
+          - Keep any passing tests unchanged
+          - Make minimal changes
+          - Prefer targeted test runs over full suite during debugging
+          EOF
+
+      # ── Option B: Generic Fix Agent (OpenAI, Gemini, Custom LLM) ──
+      - name: Run Generic Agent Fix
+        if: env.AI_PROVIDER != 'anthropic'
+        env:
+          PROVIDER: ${{ env.AI_PROVIDER }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          CUSTOM_LLM_URL: ${{ secrets.CUSTOM_LLM_URL }}
+          CUSTOM_LLM_KEY: ${{ secrets.CUSTOM_LLM_KEY }}
+          CUSTOM_LLM_MODEL: ${{ secrets.CUSTOM_LLM_MODEL }}
+          TEST_NAME: ${{ inputs.test_name }}
+          TEST_FRAMEWORK: ${{ env.TEST_FRAMEWORK }}
+          ROOT_CAUSE: ${{ inputs.root_cause }}
+          SUGGESTED_FIX: ${{ inputs.suggested_fix }}
+        run: node scripts/generic-fix-agent.mjs
+
+      # ── Common: verify, commit, PR ──
+      - name: Verify fix
+        id: verify
+        run: |
+          echo "🔍 Running full test suite to verify fix..."
+          if [ "$TEST_FRAMEWORK" = "cypress" ]; then
+            npx cypress run 2>&1 | tee verify-output.txt
+          elif [ "$TEST_FRAMEWORK" = "vitest" ]; then
+            npx vitest run --reporter=verbose 2>&1 | tee verify-output.txt
+          elif [ "$TEST_FRAMEWORK" = "jest" ]; then
+            npx jest --verbose 2>&1 | tee verify-output.txt
+          else
+            npx playwright test --reporter=list,json 2>&1 | tee verify-output.txt
+          fi
+          if [ $? -eq 0 ]; then
+            echo "FIX_OK=true" >> $GITHUB_ENV
+          else
+            echo "FIX_OK=false" >> $GITHUB_ENV
+            echo "❌ Verification failed. Last 40 lines:"
+            tail -40 verify-output.txt
+          fi
+
+      - name: Commit and push
+        if: env.FIX_OK == 'true'
+        run: |
+          git config user.name "FixSense Bot"
+          git config user.email "bot@fixsense.dev"
+          git add -A
+          git reset HEAD -- node_modules/ test-results/ playwright-report/ package-lock.json blob-report/ coverage/ 2>/dev/null || true
+          git commit -m "fix: auto-fix failing tests
+
+          Auto-fixed by FixSense AI Agent (${{ env.AI_PROVIDER }})
+          Original run: #${{ inputs.run_id }}"
+          git push origin "${{ env.BRANCH }}"
+
+      - name: Create PR
+        if: env.FIX_OK == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANALYSIS_DETAILS: ${{ inputs.analysis_details }}
+          ROOT_CAUSE: ${{ inputs.root_cause }}
+          SUGGESTED_FIX: ${{ inputs.suggested_fix }}
+          PR_TITLE_INPUT: ${{ inputs.pr_title }}
+          RUN_ID: ${{ inputs.run_id }}
+          ISSUE_NUM: ${{ inputs.issue_number }}
+        run: |
+          # Use env vars to avoid shell injection from analysis text
+          if [ -n "$ANALYSIS_DETAILS" ]; then
+            ANALYSIS="$ANALYSIS_DETAILS"
+          else
+            ANALYSIS="**Root Cause:** ${ROOT_CAUSE:-See original issue}
+          **Suggested Fix:** ${SUGGESTED_FIX:-See original issue}"
+          fi
+
+          TITLE="${PR_TITLE_INPUT:-FixSense: Auto-fix failing tests}"
+
+          # Write PR body to temp file to avoid shell escaping issues
+          cat > /tmp/pr-body.md <<'HEREDOC_END'
+          ## Automated Fix by FixSense
+
+          This PR was auto-generated by the FixSense AI Agent.
+          HEREDOC_END
+
+          # Append analysis (safely via printf)
+          printf '\n## AI Analysis\n%s\n' "$ANALYSIS" >> /tmp/pr-body.md
+          printf '\n### Original Failure\n- **Run:** [#%s](../../actions/runs/%s)\n- **Issue:** #%s\n' \
+            "$RUN_ID" "$RUN_ID" "$ISSUE_NUM" >> /tmp/pr-body.md
+          printf '\n---\n*Review carefully before merging.*\n<sub>Auto-fixed by <a href="https://fixsense.dev">FixSense</a></sub>\n' >> /tmp/pr-body.md
+
+          PR_URL=$(gh pr create \
+            --title "fix: ${TITLE}" \
+            --body-file /tmp/pr-body.md)
+
+          echo "PR_URL=$PR_URL" >> $GITHUB_ENV
+
+      - name: Update Issue — fix succeeded
+        if: env.FIX_OK == 'true' && inputs.issue_number && inputs.issue_number != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ inputs.issue_number }}" \
+            --body "<!-- failsense-issue -->
+          ## Auto-Fix PR Created
+
+          The FixSense AI Agent has created a fix:
+          **PR:** ${{ env.PR_URL }}
+
+          Please review and merge if the fix looks correct.
+
+          ---
+          <sub>Auto-fixed by <a href=\"https://fixsense.dev\">FixSense</a></sub>"
+
+          gh issue edit "${{ inputs.issue_number }}" --add-label "failsense:fixed"
+
+      - name: Update Issue — fix failed
+        if: env.FIX_OK == 'false' && inputs.issue_number && inputs.issue_number != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ inputs.issue_number }}" \
+            --body "<!-- failsense-issue -->
+          ## Auto-Fix Failed
+
+          The FixSense AI Agent attempted to fix this but the tests still fail.
+
+          Manual investigation is needed.
+
+          ---
+          <sub>Tracked by <a href=\"https://fixsense.dev\">FixSense</a></sub>"
+
+      - name: Callback to FixSense — report result
+        if: always() && inputs.run_id
+        run: |
+          if [ "${{ env.FIX_OK }}" = "true" ]; then
+            STATUS="success"
+            MSG="PR created: ${{ env.PR_URL }}"
+          elif [ "${{ env.AI_PROVIDER }}" = "" ]; then
+            STATUS="no_key"
+            MSG="No AI key configured. Add ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY as a repository secret."
+          else
+            STATUS="failed"
+            MSG="Auto-fix agent could not fix the failing tests (provider: ${{ env.AI_PROVIDER }})"
+          fi
+          curl -sS -X POST "https://fix-sense.vercel.app/api/webhooks/autofix-callback" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"secret\": \"${{ secrets.FAILSENSE_CALLBACK_SECRET }}\",
+              \"repoFullName\": \"${{ github.repository }}\",
+              \"runId\": \"${{ inputs.run_id }}\",
+              \"success\": $([ \"$STATUS\" = \"success\" ] && echo true || echo false),
+              \"prUrl\": \"${{ env.PR_URL }}\",
+              \"errorMessage\": \"$MSG\"
+            }" || echo "Callback failed (non-fatal)"
+
+      - name: Cleanup — close stale FixSense PRs
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Close any open FixSense PRs except the one just created (if any)
+          CURRENT_PR="${{ env.PR_URL }}"
+          CURRENT_NUM=""
+          if [ -n "$CURRENT_PR" ]; then
+            CURRENT_NUM=$(echo "$CURRENT_PR" | grep -o '[0-9]*$')
+          fi
+          for pr_num in $(gh pr list --state open --label "" --json number,headRefName -q '.[] | select(.headRefName | startswith("fixsense/")) | .number'); do
+            if [ "$pr_num" != "$CURRENT_NUM" ]; then
+              echo "Closing stale FixSense PR #$pr_num"
+              gh pr close "$pr_num" --delete-branch --comment "Superseded by a newer FixSense fix attempt." || true
+            fi
+          done
