@@ -38,6 +38,5 @@ export function sortBy<T>(arr: T[], key: keyof T, order: "asc" | "desc" = "asc")
 }
 
 export function sum(arr: number[]): number {
-  // BUG: starts from 1 instead of 0
-  return arr.reduce((total, n) => total + n, 1);
+  return arr.reduce((total, n) => total + n, 0);
 }
