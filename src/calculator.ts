@@ -7,8 +7,7 @@ export function subtract(a: number, b: number): number {
 }
 
 export function multiply(a: number, b: number): number {
-  // BUG: wrong operation — should multiply, but adds instead
-  return a + b;
+  return a * b;
 }
 
 export function divide(a: number, b: number): number {

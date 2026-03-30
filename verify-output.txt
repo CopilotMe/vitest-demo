@@ -1,0 +1,64 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/runner/work/vitest-demo/vitest-demo[39m
+
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misEmail[2m > [22mvalidates correct email
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misEmail[2m > [22mrejects invalid email
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misEmail[2m > [22mrejects email without domain
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misURL[2m > [22mvalidates correct URL
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misURL[2m > [22mrejects invalid URL
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misStrongPassword[2m > [22maccepts strong password with all requirements
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misStrongPassword[2m > [22mrejects short password
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misStrongPassword[2m > [22mrequires special characters
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misInRange[2m > [22mreturns true for value in range
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misInRange[2m > [22mincludes boundary values
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misInRange[2m > [22mreturns false for value out of range
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misEmpty[2m > [22mreturns true for null/undefined
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misEmpty[2m > [22mreturns true for empty string
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misEmpty[2m > [22mreturns true for empty array
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misEmpty[2m > [22mreturns true for empty object
+ [32m✓[39m src/validator.test.ts[2m > [22mvalidator[2m > [22misEmpty[2m > [22mreturns false for non-empty values
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22munique[2m > [22mremoves duplicates
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22munique[2m > [22mworks with strings
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22munique[2m > [22mreturns empty array for empty input
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22mchunk[2m > [22msplits array into chunks
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22mchunk[2m > [22mhandles chunk size larger than array
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22mchunk[2m > [22mthrows on zero or negative size
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22mflatten[2m > [22mflattens nested arrays
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22mflatten[2m > [22mhandles mixed nested and flat
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22mgroupBy[2m > [22mgroups objects by key
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22msortBy[2m > [22msorts ascending by key
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22msortBy[2m > [22msorts descending
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22msum[2m > [22msums an array of numbers
+ [32m✓[39m src/array-utils.test.ts[2m > [22marray-utils[2m > [22msum[2m > [22mreturns 0 for empty array
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mformatCurrency[2m > [22mformats USD
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mformatCurrency[2m > [22mformats EUR
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mformatCurrency[2m > [22mformats BGN
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mformatCurrency[2m > [22muses currency code for unknown currencies
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mformatDate[2m > [22mformats a date as YYYY-MM-DD
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mformatDate[2m > [22mpads single-digit month and day
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mtruncate[2m > [22mreturns short text unchanged
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mtruncate[2m > [22mtruncates long text with ellipsis
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mslugify[2m > [22mconverts text to slug
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mslugify[2m > [22mremoves special characters
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mslugify[2m > [22mtrims leading/trailing hyphens
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mcapitalize[2m > [22mcapitalizes first letter
+ [32m✓[39m src/formatter.test.ts[2m > [22mformatter[2m > [22mcapitalize[2m > [22mhandles empty string
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22madd[2m > [22madds two positive numbers
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22madd[2m > [22madds negative numbers
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22madd[2m > [22madds zero
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22msubtract[2m > [22msubtracts two numbers
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22msubtract[2m > [22mhandles negative result
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22mmultiply[2m > [22mmultiplies two numbers
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22mmultiply[2m > [22mmultiplies by zero
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22mmultiply[2m > [22mmultiplies negative numbers
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22mdivide[2m > [22mdivides two numbers
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22mdivide[2m > [22mthrows on division by zero
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22mdivide[2m > [22mhandles decimal results
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22mpercentage[2m > [22mcalculates percentage
+ [32m✓[39m src/calculator.test.ts[2m > [22mcalculator[2m > [22mpercentage[2m > [22mhandles zero total
+
+[2m Test Files [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m      Tests [22m [1m[32m55 passed[39m[22m[90m (55)[39m
+[2m   Start at [22m 09:30:14
+[2m   Duration [22m 520ms[2m (transform 142ms, setup 0ms, collect 204ms, tests 34ms, environment 1ms, prepare 329ms)[22m
+
