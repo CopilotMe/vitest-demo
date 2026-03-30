@@ -1,0 +1,18 @@
+{
+  "name": "vitest-demo",
+  "version": "1.0.0",
+  "description": "Demo TypeScript project with Vitest unit tests — used to test FixSense auto-fix on unit test failures",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
