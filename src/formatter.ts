@@ -19,7 +19,7 @@ export function formatDate(date: Date): string {
 export function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   // BUG: should add "..." but adds ".." instead (2 dots, not 3)
-  return text.slice(0, maxLength) + "..";
+  return text.slice(0, maxLength) + "...";
 }
 
 export function slugify(text: string): string {
