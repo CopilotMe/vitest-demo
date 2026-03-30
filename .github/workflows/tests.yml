@@ -10,7 +10,7 @@ jobs:
         with:
           node-version: 20
 
-      - run: npm ci
+      - run: npm install
       - name: Run Vitest
         run: npx vitest run --reporter=verbose,junit --outputFile.junit=test-results/results.xml
         continue-on-error: true
