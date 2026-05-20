@@ -1,5 +1,10 @@
 name: Tests
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    # Every Monday at 9:17 UTC — keeps Supabase active (free tier auto-pauses after 7 days idle)
+    - cron: '17 9 * * 1'
 
 jobs:
   test:
