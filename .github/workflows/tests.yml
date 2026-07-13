@@ -1,4 +1,5 @@
 name: Tests
+# Keep-alive: touched 2026-07-13 to reset GitHub's scheduled-workflow inactivity timer
 on:
   push:
   pull_request:
