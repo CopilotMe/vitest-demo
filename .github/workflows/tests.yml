@@ -1,5 +1,4 @@
 name: Tests
-# Keep-alive: touched 2026-07-13 to reset GitHub's scheduled-workflow inactivity timer
 on:
   push:
   pull_request:
@@ -7,21 +6,33 @@ on:
     # Every Monday at 9:17 UTC — keeps Supabase active (free tier auto-pauses after 7 days idle)
     - cron: '17 9 * * 1'
 
+permissions:
+  contents: read
+  actions: write # needed by the keep-alive step to re-enable this workflow
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
+
+      # GitHub disables scheduled workflows after 60 days without repo activity.
+      # Re-enabling via the API resets that timer, so weekly runs keep it alive forever.
+      - name: Keep workflow alive
+        if: github.event_name == 'schedule'
+        run: gh api -X PUT repos/${{ github.repository }}/actions/workflows/tests.yml/enable
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - run: npm install
       - name: Run Vitest
         id: tests
         run: npx vitest run --reporter=verbose --reporter=junit --outputFile.junit=test-results/results.xml
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
